@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  nginx:
+    build:
+      context: ./nginx
+    ports:
+      - "8180:80"
+    networks:
+      - net
+
+  scanner:
+    container_name: vuln_scanner
+    build:
+      context: ./scanner
+    volumes:
+      - ./reports:/scanner/reports
+      - trivy-cache:/root/.cache/trivy
+    depends_on:
+      - nginx
+    networks:
+      - net
+
+networks:
+  net:
+
+volumes:
+  trivy-cache:
