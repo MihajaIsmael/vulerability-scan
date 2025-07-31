@@ -52,18 +52,45 @@ trivy-report.txt : résultat de l’analyse de l’image Docker Nginx.
 
 nikto-report.txt : résultat du scan HTTP (port 80).
 
-## Fonctionnement technique
-Trivy scanne l’image nginx:1.10 à la recherche de vulnérabilités connues (CVE).
+## ⚙️ Fonctionnement technique
 
-Nikto effectue un scan HTTP de base sur l’URL http://nginx, accessible via le réseau Docker.
+Le projet repose sur une architecture Docker multi-conteneurs avec deux services principaux :
 
-Les deux outils produisent un rapport texte redirigé dans le volume partagé avec l’hôte.
+- **Nginx** : un conteneur web basé sur l'image `nginx:1.10`, exposé en interne via le réseau Docker sous le nom `nginx`.
+- **Scanner** : un conteneur personnalisé qui exécute un script de scan automatisé via le fichier `run-scan.sh`.
 
-Le script run-scan.sh automatise tout ce processus.
+Le script de scan exécute les étapes suivantes :
 
-## Personnalisation possible
-Le serveur cible peut être remplacé par un conteneur Apache, ou une autre version de Nginx.
+1. ✅ **Vérifie l’accessibilité HTTP de Nginx** via une requête `curl`.
+2. 🛡️ **Exécute un scan Trivy** sur l’image `nginx:1.10` pour détecter les vulnérabilités connues (CVE), limité aux niveaux **HIGH** et **CRITICAL** :
+   - Trivy est lancé avec les options `--scanners vuln` pour ignorer les secrets, `--timeout 10m` pour éviter les blocages, et `--format table` pour un rapport lisible.
+   - Les résultats sont sauvegardés dans `reports/trivy-report.txt`.
+3. 🔍 **Lance un scan Nikto** sur l’URL `http://nginx`, via le réseau Docker :
+   - Nikto identifie les failles basiques liées au serveur web (mauvaises configurations, fichiers dangereux, headers obsolètes...).
+   - Le résultat est enregistré dans `reports/nikto-report.txt`.
+4. 📁 **Les rapports sont stockés dans un dossier partagé avec l’hôte**, grâce à un volume Docker (`./reports`), ce qui permet de consulter les résultats depuis le système local.
 
-Le script peut être adapté pour exporter les rapports au format HTML, JSON, ou les envoyer par email.
+---
 
-Des outils complémentaires comme Nmap, OpenVAS ou Wapiti peuvent être ajoutés.
+## 🔧 Personnalisation possible
+
+Le projet est facilement extensible :
+
+- 🖥️ **Changer la cible du scan** :
+  - Tu peux remplacer `nginx:1.10` par n'importe quelle image Docker (ex. `httpd:2.4` pour Apache).
+  - Modifie aussi l’URL cible dans `run-scan.sh` (`http://nginx`) pour pointer vers le nouveau conteneur.
+
+- 📤 **Exporter les rapports dans différents formats** :
+  - Trivy supporte aussi les formats `json`, `sarif`, `template` via `--format`.
+  - Nikto peut produire des rapports en `html`, `csv`, `xml`.
+
+- 📬 **Automatiser la diffusion des rapports** :
+  - Ajoute un envoi par email via `mail`, `msmtp`, ou un webhook Slack/Mattermost.
+  - Les rapports peuvent aussi être intégrés dans une CI/CD (GitLab, GitHub Actions...).
+
+- 🧰 **Ajouter d'autres outils de scan** :
+  - Intègre facilement des outils complémentaires dans le Dockerfile ou dans `run-scan.sh`, comme :
+    - [`Nmap`](https://nmap.org/) (scan réseau),
+    - [`Wapiti`](https://wapiti.sourceforge.io/) (pentest web),
+    - [`OpenVAS`](https://www.greenbone.net/) (scan de vulnérabilité complet),
+    - [`ZAP`](https://www.zaproxy.org/) ou [`Arachni`](https://www.arachni-scanner.com/) pour des audits plus poussés.
